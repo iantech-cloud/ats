@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "ChatBot Platform"
+version = "1.0.0"
+id = "artifacts/chatbot-web"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25493
+
+[services.development]
+run = "pnpm --filter @workspace/chatbot-web run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/chatbot-web", "run", "build" ]
+publicDir = "artifacts/chatbot-web/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25493"
+BASE_PATH = "/"

@@ -1,0 +1,912 @@
+openapi: 3.1.0
+info:
+  title: Api
+  version: 0.1.0
+  description: ChatBot Platform API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: auth
+    description: User authentication
+  - name: bots
+    description: Chatbot profiles
+  - name: payments
+    description: M-Pesa payments
+  - name: chat
+    description: Chat messages
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /auth/session:
+    get:
+      operationId: fetchSession
+      tags: [auth]
+      summary: Get or create session for a user
+      parameters:
+        - in: query
+          name: phone
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Session info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserSession"
+
+  /auth/verify:
+    post:
+      operationId: verifyAccessCode
+      tags: [auth]
+      summary: Verify platform access code for admin-unlocked users (single-use)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyCodeInput"
+      responses:
+        "200":
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerifyCodeResult"
+        "401":
+          description: Invalid code
+
+  /auth/verify-bot:
+    post:
+      operationId: verifyBotAccessCode
+      tags: [auth]
+      summary: Verify bot-level access code (single-use, grants bot access)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyBotCodeInput"
+      responses:
+        "200":
+          description: Bot access granted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerifyBotCodeResult"
+        "401":
+          description: Invalid code
+
+  /bots:
+    get:
+      operationId: listBots
+      tags: [bots]
+      summary: List all available chatbots
+      responses:
+        "200":
+          description: List of bots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Bot"
+
+  /bots/{botId}:
+    get:
+      operationId: fetchBot
+      tags: [bots]
+      summary: Get a single bot profile
+      parameters:
+        - in: path
+          name: botId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Bot profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bot"
+        "404":
+          description: Not found
+
+  /payments/initiate-platform:
+    post:
+      operationId: initiatePlatformPayment
+      tags: [payments]
+      summary: Initiate Ksh 50 M-Pesa STK push to unlock platform access
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentInitiateInput"
+      responses:
+        "200":
+          description: STK push sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentInitiateResult"
+
+  /payments/initiate-bot:
+    post:
+      operationId: initiateBotPayment
+      tags: [payments]
+      summary: Initiate Ksh 20 M-Pesa STK push to unlock a specific bot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BotPaymentInput"
+      responses:
+        "200":
+          description: STK push sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentInitiateResult"
+
+  /payments/callback:
+    post:
+      operationId: mpesaCallback
+      tags: [payments]
+      summary: M-Pesa payment callback (called by Safaricom)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MpesaCallbackPayload"
+      responses:
+        "200":
+          description: Acknowledged
+
+  /payments/status:
+    get:
+      operationId: fetchPaymentStatus
+      tags: [payments]
+      summary: Check payment status for a user
+      parameters:
+        - in: query
+          name: phone
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: botId
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: checkoutRequestId
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Payment status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentStatus"
+
+  /payments/history:
+    get:
+      operationId: fetchPaymentHistory
+      tags: [payments]
+      summary: Get paginated transaction history for a user
+      parameters:
+        - in: query
+          name: phone
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: page
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Transaction history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentHistoryResult"
+
+  /chat/conversations:
+    get:
+      operationId: fetchConversations
+      tags: [chat]
+      summary: Get all conversations for a user (one per bot)
+      parameters:
+        - in: query
+          name: phone
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Conversation list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Conversation"
+
+  /chat/messages:
+    get:
+      operationId: fetchChatHistory
+      tags: [chat]
+      summary: Get chat history for a user with a bot
+      parameters:
+        - in: query
+          name: botId
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: phone
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Chat messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ChatMessage"
+    post:
+      operationId: sendMessage
+      tags: [chat]
+      summary: Send a message to a bot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatMessageInput"
+      responses:
+        "200":
+          description: Bot reply
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatMessage"
+        "403":
+          description: Access not unlocked
+
+  /admin/stats:
+    get:
+      operationId: fetchAdminStats
+      tags: [bots]
+      summary: Admin — platform statistics
+      parameters:
+        - in: header
+          name: x-admin-password
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminStats"
+        "401":
+          description: Unauthorized
+
+  /admin/users:
+    get:
+      operationId: fetchAdminUsers
+      tags: [bots]
+      summary: Admin — list users
+      parameters:
+        - in: header
+          name: x-admin-password
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Users list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUsersResult"
+        "401":
+          description: Unauthorized
+
+  /admin/revenue:
+    get:
+      operationId: fetchAdminRevenue
+      tags: [bots]
+      summary: Admin — revenue chart (last 30 days)
+      parameters:
+        - in: header
+          name: x-admin-password
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Revenue chart
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminRevenueResult"
+        "401":
+          description: Unauthorized
+
+  /admin/users/{phone}/unlock:
+    post:
+      operationId: adminUnlockUser
+      tags: [bots]
+      summary: Admin — manually unlock a user and generate access code
+      parameters:
+        - in: path
+          name: phone
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: x-admin-password
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: User unlocked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUnlockResult"
+        "401":
+          description: Unauthorized
+
+  /admin/users/{phone}/bots/{botId}/unlock:
+    post:
+      operationId: adminUnlockUserBot
+      tags: [bots]
+      summary: Admin — grant a user free access to a specific bot via access code
+      parameters:
+        - in: path
+          name: phone
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: botId
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: x-admin-password
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Bot access code generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminBotUnlockResult"
+        "401":
+          description: Unauthorized
+        "404":
+          description: Bot not found
+
+  /admin/bots/{botId}:
+    put:
+      operationId: updateBot
+      tags: [bots]
+      summary: Admin — update a bot
+      parameters:
+        - in: path
+          name: botId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BotInput"
+      responses:
+        "200":
+          description: Updated bot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bot"
+    delete:
+      operationId: deleteBot
+      tags: [bots]
+      summary: Admin — delete a bot
+      parameters:
+        - in: path
+          name: botId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
+
+  /admin/bots:
+    post:
+      operationId: createBot
+      tags: [bots]
+      summary: Create a new bot profile (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BotInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bot"
+
+  /admin/seed:
+    post:
+      operationId: seedBots
+      tags: [bots]
+      summary: Seed default bots (admin)
+      responses:
+        "200":
+          description: Seeded
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+
+    VerifyCodeInput:
+      type: object
+      required: [phone, code]
+      properties:
+        phone:
+          type: string
+        code:
+          type: string
+
+    VerifyCodeResult:
+      type: object
+      required: [valid, phone, platformUnlocked, unlockedBots]
+      properties:
+        valid:
+          type: boolean
+        phone:
+          type: string
+        platformUnlocked:
+          type: boolean
+        unlockedBots:
+          type: array
+          items:
+            type: string
+        sessionToken:
+          type: string
+
+    VerifyBotCodeInput:
+      type: object
+      required: [phone, botId, code]
+      properties:
+        phone:
+          type: string
+        botId:
+          type: string
+        code:
+          type: string
+
+    VerifyBotCodeResult:
+      type: object
+      required: [valid, phone, botId, platformUnlocked, unlockedBots]
+      properties:
+        valid:
+          type: boolean
+        phone:
+          type: string
+        botId:
+          type: string
+        platformUnlocked:
+          type: boolean
+        unlockedBots:
+          type: array
+          items:
+            type: string
+        sessionToken:
+          type: string
+
+    UserSession:
+      type: object
+      required: [phone, platformUnlocked, unlockedBots, hasAccessCode]
+      properties:
+        phone:
+          type: string
+        platformUnlocked:
+          type: boolean
+        unlockedBots:
+          type: array
+          items:
+            type: string
+        hasAccessCode:
+          type: boolean
+
+    Bot:
+      type: object
+      required: [_id, name, age, tagline, avatar, isOnline]
+      properties:
+        _id:
+          type: string
+        name:
+          type: string
+        age:
+          type: integer
+        tagline:
+          type: string
+        bio:
+          type: string
+        avatar:
+          type: string
+        interests:
+          type: array
+          items:
+            type: string
+        isOnline:
+          type: boolean
+
+    BotInput:
+      type: object
+      required: [name, age, tagline, avatar]
+      properties:
+        name:
+          type: string
+        age:
+          type: integer
+        tagline:
+          type: string
+        bio:
+          type: string
+        avatar:
+          type: string
+        interests:
+          type: array
+          items:
+            type: string
+        scripts:
+          type: array
+          items:
+            type: string
+
+    PaymentInitiateInput:
+      type: object
+      required: [phone]
+      properties:
+        phone:
+          type: string
+
+    BotPaymentInput:
+      type: object
+      required: [phone, botId]
+      properties:
+        phone:
+          type: string
+        botId:
+          type: string
+
+    MpesaCallbackPayload:
+      type: object
+      properties:
+        Body:
+          type: object
+
+    PaymentInitiateResult:
+      type: object
+      required: [message, checkoutRequestId]
+      properties:
+        message:
+          type: string
+        checkoutRequestId:
+          type: string
+        merchantRequestId:
+          type: string
+        transactionRef:
+          type: string
+
+    PaymentStatus:
+      type: object
+      required: [platformUnlocked, unlockedBots, paymentStatus]
+      properties:
+        platformUnlocked:
+          type: boolean
+        unlockedBots:
+          type: array
+          items:
+            type: string
+        paymentStatus:
+          type: string
+          enum: [pending, completed, failed, cancelled, timeout, none]
+        resultCode:
+          type: string
+        resultDesc:
+          type: string
+        mpesaReceiptNumber:
+          type: string
+        transactionRef:
+          type: string
+        merchantRequestId:
+          type: string
+        amount:
+          type: number
+        completedAt:
+          type: string
+        sessionToken:
+          type: string
+
+    TransactionRecord:
+      type: object
+      required: [_id, type, amount, amountCents, status, checkoutRequestId, createdAt]
+      properties:
+        _id:
+          type: string
+        type:
+          type: string
+          enum: [platform, bot]
+        botId:
+          type: string
+          nullable: true
+        amount:
+          type: number
+        amountCents:
+          type: integer
+        status:
+          type: string
+          enum: [pending, completed, failed, cancelled, timeout]
+        transactionRef:
+          type: string
+          nullable: true
+        checkoutRequestId:
+          type: string
+        merchantRequestId:
+          type: string
+          nullable: true
+        mpesaReceiptNumber:
+          type: string
+          nullable: true
+        mpesaTransactionDate:
+          type: string
+          nullable: true
+        resultCode:
+          type: string
+          nullable: true
+        resultDesc:
+          type: string
+          nullable: true
+        completedAt:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+
+    PaymentHistoryResult:
+      type: object
+      required: [transactions, total, page, limit, totalPages]
+      properties:
+        transactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/TransactionRecord"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+        totalPages:
+          type: integer
+
+    AdminUnlockResult:
+      type: object
+      required: [phone, accessCode, message]
+      properties:
+        phone:
+          type: string
+        accessCode:
+          type: string
+        message:
+          type: string
+
+    AdminBotUnlockResult:
+      type: object
+      required: [phone, botId, accessCode, message]
+      properties:
+        phone:
+          type: string
+        botId:
+          type: string
+        accessCode:
+          type: string
+        message:
+          type: string
+
+    BotAccessCodeEntry:
+      type: object
+      required: [botId, code]
+      properties:
+        botId:
+          type: string
+        code:
+          type: string
+
+    AdminStats:
+      type: object
+      required: [totalUsers, totalBots, totalRevenue, totalMessages, platformPayments, botPayments, completedPayments]
+      properties:
+        totalUsers:
+          type: integer
+        totalBots:
+          type: integer
+        totalRevenue:
+          type: number
+        totalMessages:
+          type: integer
+        platformPayments:
+          type: integer
+        botPayments:
+          type: integer
+        completedPayments:
+          type: integer
+
+    AdminUser:
+      type: object
+      required: [_id, phone, platformUnlocked, unlockedBotsCount, revenue, messageCount]
+      properties:
+        _id:
+          type: string
+        phone:
+          type: string
+        platformUnlocked:
+          type: boolean
+        unlockedBy:
+          type: string
+        accessCode:
+          type: string
+          nullable: true
+        botAccessCodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/BotAccessCodeEntry"
+        unlockedBotsCount:
+          type: integer
+        revenue:
+          type: number
+        messageCount:
+          type: integer
+        joinedAt:
+          type: string
+
+    AdminUsersResult:
+      type: object
+      required: [users, total, page, limit]
+      properties:
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminUser"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+
+    AdminRevenueResult:
+      type: object
+      required: [chart]
+      properties:
+        chart:
+          type: array
+          items:
+            type: object
+            required: [date, amount]
+            properties:
+              date:
+                type: string
+              amount:
+                type: number
+
+    Conversation:
+      type: object
+      required: [botId, botName, botAvatar, messageCount, lastMessage, lastMessageAt]
+      properties:
+        botId:
+          type: string
+        botName:
+          type: string
+        botAvatar:
+          type: string
+        messageCount:
+          type: integer
+        lastMessage:
+          type: string
+        lastMessageAt:
+          type: string
+
+    ChatMessage:
+      type: object
+      required: [_id, botId, phone, role, text, createdAt]
+      properties:
+        _id:
+          type: string
+        botId:
+          type: string
+        phone:
+          type: string
+        role:
+          type: string
+        text:
+          type: string
+        createdAt:
+          type: string
+
+    ChatMessageInput:
+      type: object
+      required: [phone, botId, text]
+      properties:
+        phone:
+          type: string
+        botId:
+          type: string
+        text:
+          type: string
